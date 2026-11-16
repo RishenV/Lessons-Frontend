@@ -45,36 +45,6 @@
         <div id="lessonstore">
             <h1><i class="fa-solid fa-book-open"></i> {{ message }}</h1>
 
-            <!-- Sorting controls -->
-            <div class="controls">
-
-                <div>
-                    <label for="sortAttribute">Sort by: </label>
-
-                    <select id="sortAttribute" v-model="sortAttribute">
-                        <option value="subject">Subject</option>
-                        <option value="location">Location</option>
-                        <option value="price">Price</option>
-                        <option value="spaces">Spaces Available</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="sortOrder">Order: </label>
-
-                    <select id="sortOrder" v-model="sortOrder">
-                        <option value="asc">Ascending</option>
-                        <option value="desc">Descending</option>
-                    </select>
-                </div>
-
-                <div class="cart-summary">
-                    <i class="fa-solid fa-cart-shopping"></i>
-                    Cart: {{ cartItemCount }} lesson(s)
-                </div>
-
-            </div>
-
             <!-- LESSON PAGE -->
             <div v-if="showLesson">
 
@@ -85,6 +55,36 @@
                 </button>
 
                 <hr>
+
+                <!-- Sorting controls -->
+                <div class="controls">
+
+                    <div>
+                        <label for="sortAttribute">Sort by: </label>
+
+                        <select id="sortAttribute" v-model="sortAttribute">
+                            <option value="subject">Subject</option>
+                            <option value="location">Location</option>
+                            <option value="price">Price</option>
+                            <option value="spaces">Spaces Available</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="sortOrder">Order: </label>
+
+                        <select id="sortOrder" v-model="sortOrder">
+                            <option value="asc">Ascending</option>
+                            <option value="desc">Descending</option>
+                        </select>
+                    </div>
+
+                    <div class="cart-summary">
+                        <i class="fa-solid fa-cart-shopping"></i>
+                        Cart: {{ cartItemCount }} lesson(s)
+                    </div>
+
+                </div>
 
                 <div class="lesson"
                     v-for="lesson in sortedLessons":key="lesson.id">
@@ -121,46 +121,50 @@
 
                 <br><br>
 
-                <p>First Name: <input v-model="order.firstname"></p>
+                <p>Name: <input v-model="order.name" @input="updateName"></p>
 
-                <p>Last Name: <input v-model="order.lastname"></p>
+                <p>Phone: <input v-model="order.phone" @input="updatePhone"></p>
 
-                <p>Telephone: <input v-model="order.telephone"></p>
+                <hr>
+
+                <br>
+
+                <div v-for="item in cartItems"
+                :key="item.id"
+                class="cart-item">
+
+                <strong>{{ item.subject }}</strong>
+                — {{ item.quantity }} space(s)
+                × Rs. {{ item.price }}
+                = Rs. {{ item.quantity * item.price }}
+
+                <button @click="removeItem(item.id)">Remove</button>
+
+                </div>
+
+                <p class="total">
+                    Total: Rs. {{ cartTotal }}
+                </p>
 
                 <h2>Summary</h2>
 
-                <p>
-                    {{ order.firstname }}
-                    {{ order.lastname }}
+                <p>Name: 
+                    {{ order.name }}
                 </p>
-                <p>Telephone:{{ order.telephone }}</p>
+                <p>Phone: {{ order.phone }}</p>
+                <p class="total">
+                Total: Rs. {{ cartTotal }}
+                </p>
 
                 <button
-                    @click="postName"
-                    :disabled="
-                        !order.firstname.trim() ||
-                        !order.lastname.trim() ||
-                        !order.telephone.trim()
-                    ">
-                    Confirm Order
+                    @click="submitOrder"
+                    :disabled="!canSubmitOrder || isSubmitting || orderSubmitted">
+                    Checkout
                 </button>
-
-                <br><br>
-
-                <div v-for="item in cartItems"
-             :key="item.id"
-             class="cart-item">
-
-            <strong>{{ item.subject }}</strong>
-            — {{ item.quantity }} space(s)
-            × Rs. {{ item.price }}
-            = Rs. {{ item.quantity * item.price }}
-
-            </div>
-
-            <p class="total">
-                Total: Rs. {{ cartTotal }}
-            </p>
+                <p v-if="orderSubmitted" role="status">
+                    Your order has been submitted.
+                </p>
+                <p v-if="orderError" role="alert">{{ orderError }}</p>
             </div>
 
         </div>
@@ -176,10 +180,12 @@
                         cart:[],
                         showLesson:true,
                         order:{
-                            firstname:"",
-                            lastname:"",
-                            telephone:""
+                            name:"",
+                            phone:""
                         },
+                        isSubmitting:false,
+                        orderSubmitted:false,
+                        orderError:"",
                         sortAttribute: "subject",
                         sortOrder: "asc",
                     }
@@ -232,6 +238,10 @@
                             (total, item) => total + item.quantity * item.price,
                             0
                         );
+                    },
+                    canSubmitOrder() {
+                        return /^[A-Za-z]+$/.test(this.order.name) &&
+                            /^\d+$/.test(this.order.phone);
                     }
                 },
 
@@ -239,6 +249,40 @@
                     
                     addItem(lesson){
                         this.cart.push(lesson.id);
+                    },
+
+                    removeItem(lessonId){
+                        const cartIndex = this.cart.indexOf(lessonId);
+                        if(cartIndex !== -1){
+                            this.cart.splice(cartIndex, 1);
+                        }
+                    },
+
+                    resetOrderStatus(){
+                        this.orderSubmitted = false;
+                        this.orderError = "";
+                    },
+
+                    updateName(event){
+                        const input = event.target.value;
+                        if(/[^A-Za-z]/.test(input)){
+                            window.alert("Name cannot contain numbers; enter letters only.");
+                        }
+                        const name = input.replace(/[^A-Za-z]/g, "");
+                        event.target.value = name;
+                        this.order.name = name;
+                        this.resetOrderStatus();
+                    },
+
+                    updatePhone(event){
+                        const input = event.target.value;
+                        if(/\D/.test(input)){
+                            window.alert("Phone cannot contain letters; enter numbers only.");
+                        }
+                        const phone = input.replace(/\D/g, "");
+                        event.target.value = phone;
+                        this.order.phone = phone;
+                        this.resetOrderStatus();
                     },
 
                     toggleCheckout(){
@@ -292,6 +336,7 @@
                             console.log(error);
                         }
                     },
+                    
 
                 }
             });
