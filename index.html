@@ -336,7 +336,40 @@
                             console.log(error);
                         }
                     },
-                    
+                    async submitOrder(){
+                        if(!this.canSubmitOrder || this.isSubmitting){
+                            return;
+                        }
+
+                        this.isSubmitting = true;
+                        this.orderError = "";
+
+                        try{
+                            const response = await fetch(LESSON_URL + "/orders", {
+                                method:"POST",
+                                headers:{
+                                    "Content-Type":"application/json"
+                                },
+                                body:JSON.stringify({
+                                    name:this.order.name,
+                                    phone:this.order.phone
+                                })
+                            });
+
+                            if(!response.ok){
+                                throw new Error(`HTTP error ${response.status}`);
+                            }
+
+                            this.orderSubmitted = true;
+                        }
+                        catch(error){
+                            this.orderError = "Unable to submit your order. Please try again.";
+                            console.error(error);
+                        }
+                        finally{
+                            this.isSubmitting = false;
+                        }
+                    },
 
                 }
             });
