@@ -173,34 +173,38 @@
 
             const LESSON_URL = "https://m01127027-backend.onrender.com";
             const myApp = Vue.createApp({
-                data(){
-                    return{
+                data() {
+                    return {
                         message: "Available Lessons",
-                        lessons:[],
-                        cart:[],
-                        showLesson:true,
-                        order:{
-                            name:"",
-                            phone:""
+                        lessons: [],
+                        cart: [],
+                        showLesson: true,
+
+                        order: {
+                            name: "",
+                            phone: ""
                         },
-                        isSubmitting:false,
-                        orderSubmitted:false,
-                        orderError:"",
+
+                        isSubmitting: false,
+                        orderSubmitted: false,
+                        orderError: "",
+
                         sortAttribute: "subject",
                         sortOrder: "asc",
                     }
                 },
 
-                created(){
+                created() {
                     this.fetchData();
                 },
 
-                computed:{
-                    cartItemCount(){
+                computed: {
+
+                    cartItemCount() {
                         return this.cart.length;
                     },
 
-                    cartItems(){
+                    cartItems() {
                         return this.lessons
                             .map(lesson => ({
                                 ...lesson,
@@ -229,54 +233,60 @@
                             if (AttA > AttB) {
                                 return this.sortOrder === "asc" ? 1 : -1;
                             }
-
                             return 0;
                         });
                     },
+
                     cartTotal() {
                         return this.cartItems.reduce(
                             (total, item) => total + item.quantity * item.price,
                             0
                         );
                     },
+
                     canSubmitOrder() {
                         return /^[A-Za-z]+$/.test(this.order.name) &&
                             /^\d+$/.test(this.order.phone);
                     }
                 },
 
-                methods:{
-                    
-                    addItem(lesson){
+                methods: {
+
+                    addItem(lesson) {
                         this.cart.push(lesson.id);
                     },
 
-                    removeItem(lessonId){
+                    removeItem(lessonId) {
                         const cartIndex = this.cart.indexOf(lessonId);
-                        if(cartIndex !== -1){
+
+                        if (cartIndex !== -1) {
                             this.cart.splice(cartIndex, 1);
                         }
                     },
 
-                    resetOrderStatus(){
+                    resetOrderStatus() {
                         this.orderSubmitted = false;
                         this.orderError = "";
                     },
 
-                    updateName(event){
+                    updateName(event) {
                         const input = event.target.value;
-                        if(/[^A-Za-z]/.test(input)){
+
+                        if (/[^A-Za-z]/.test(input)) {
                             window.alert("Name cannot contain numbers; enter letters only.");
                         }
+
                         const name = input.replace(/[^A-Za-z]/g, "");
+
                         event.target.value = name;
                         this.order.name = name;
+
                         this.resetOrderStatus();
                     },
 
-                    updatePhone(event){
+                    updatePhone(event) {
                         const input = event.target.value;
-                        if(/\D/.test(input)){
+                        if (/\D/.test(input)) {
                             window.alert("Phone cannot contain letters; enter numbers only.");
                         }
                         const phone = input.replace(/\D/g, "");
@@ -285,112 +295,162 @@
                         this.resetOrderStatus();
                     },
 
-                    async toggleCheckout(){
-                        if(
+                    async toggleCheckout() {
+                        if (
                             this.showLesson &&
                             this.cartItemCount === 0
-                        ){
+                        ) {
                             return;
                         }
 
-                        if(!this.showLesson && this.orderSubmitted){
+                        if (!this.showLesson && this.orderSubmitted) {
                             this.cart = [];
                             this.orderSubmitted = false;
+
                             await this.fetchData();
                         }
 
-                        this.showLesson =!this.showLesson;
+                        this.showLesson = !this.showLesson;
                     },
 
-                    canAddToCart(lesson){
+                    canAddToCart(lesson) {
                         return (
-                            this.cartLessonCount(
-                                lesson.id
-                            )
+                            this.cartLessonCount(lesson.id)
                             < lesson.spaces
                         );
                     },
 
-                    cartLessonCount(id){
+                    cartLessonCount(id) {
                         let count = 0;
-                        for(
+
+                        for (
                             let i = 0;
                             i < this.cart.length;
                             i++
-                        ){
-                            if(
-                                this.cart[i] === id
-                            ){
+                        ) {
+                            if (this.cart[i] === id) {
                                 count++;
                             }
-
                         }
+
                         return count;
                     },
 
-                    async fetchData(){
-                        try{
+
+                    // GET: Retrieve all lessons
+                    async fetchData() {
+                        try {
                             const url = LESSON_URL + "/lessons";
                             const response = await fetch(url);
 
-                            if(!response.ok){
+                            if (!response.ok) {
                                 throw new Error(`HTTP error ${response.status}`);
                             }
+
                             this.lessons = await response.json();
+
                             console.log(this.lessons);
                         }
-                        catch(error){
+                        catch (error) {
                             console.log(error);
                         }
                     },
-                    async submitOrder(){
-                        if(!this.canSubmitOrder || this.isSubmitting){
+
+
+                    // PUT: Update available spaces
+                    async updateLesson(lesson, quantity) {
+
+                        let updateBody = {
+                            spaces: lesson.spaces - quantity
+                        };
+
+                        const url = LESSON_URL + "/lessons" + "/" + lesson.id;
+
+                        const options = {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(updateBody)
+                        };
+
+                        let response = await fetch(url, options);
+
+                        if (!response.ok) {
+                            throw new Error("Unable to update lesson spaces.");
+                        }
+                    },
+
+
+                    // POST and PUT: Submit order and update spaces
+                    async submitOrder() {
+
+                        if (!this.canSubmitOrder || this.isSubmitting) {
                             return;
                         }
 
                         this.isSubmitting = true;
                         this.orderError = "";
 
-                        try{
+                        try {
+
+                            // Save order using POST
                             const response = await fetch(LESSON_URL + "/orders", {
-                                method:"POST",
-                                headers:{
-                                    "Content-Type":"application/json"
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
                                 },
-                                body:JSON.stringify({
-                                    name:this.order.name,
-                                    phone:this.order.phone,
-                                    lessons:this.cartItems.map(item => ({
-                                        id:item.id,
-                                        quantity:item.quantity
+                                body: JSON.stringify({
+                                    name: this.order.name,
+                                    phone: this.order.phone,
+                                    lessons: this.cartItems.map(item => ({
+                                        id: item.id,
+                                        quantity: item.quantity
                                     }))
                                 })
                             });
 
-                            if(!response.ok){
-                                if(response.status === 409){
+                            if (!response.ok) {
+                                if (response.status === 409) {
                                     throw new Error("Some lessons no longer have enough spaces. Please update your cart.");
                                 }
+
                                 throw new Error(`HTTP error ${response.status}`);
                             }
 
+
+                            // PUT: Update available spaces
+                            for (const item of this.cartItems) {
+
+                                const lesson = this.lessons.find(
+                                    lesson => lesson.id === item.id
+                                );
+
+                                await this.updateLesson(lesson, item.quantity);
+                            }
+
+
+                            // Refresh lesson data after updates
+                            await this.fetchData();
                             this.orderSubmitted = true;
+
                         }
-                        catch(error){
+                        catch (error) {
+
                             this.orderError = error.message.startsWith("Some lessons")
                                 ? error.message
                                 : "Unable to submit your order. Please try again.";
                             console.error(error);
                         }
-                        finally{
+                        finally {
                             this.isSubmitting = false;
                         }
-                    },
+                    }
 
                 }
             });
 
-        myApp.mount("#lessonstore");
+            myApp.mount("#lessonstore");
 
         </script>
     </body>
