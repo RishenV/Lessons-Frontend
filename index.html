@@ -285,13 +285,20 @@
                         this.resetOrderStatus();
                     },
 
-                    toggleCheckout(){
+                    async toggleCheckout(){
                         if(
                             this.showLesson &&
                             this.cartItemCount === 0
                         ){
                             return;
                         }
+
+                        if(!this.showLesson && this.orderSubmitted){
+                            this.cart = [];
+                            this.orderSubmitted = false;
+                            await this.fetchData();
+                        }
+
                         this.showLesson =!this.showLesson;
                     },
 
@@ -353,19 +360,26 @@
                                 body:JSON.stringify({
                                     name:this.order.name,
                                     phone:this.order.phone,
-                                    id:this.item.id,
-                                    spaces:this.item.quantity
+                                    lessons:this.cartItems.map(item => ({
+                                        id:item.id,
+                                        quantity:item.quantity
+                                    }))
                                 })
                             });
 
                             if(!response.ok){
+                                if(response.status === 409){
+                                    throw new Error("Some lessons no longer have enough spaces. Please update your cart.");
+                                }
                                 throw new Error(`HTTP error ${response.status}`);
                             }
 
                             this.orderSubmitted = true;
                         }
                         catch(error){
-                            this.orderError = "Unable to submit your order. Please try again.";
+                            this.orderError = error.message.startsWith("Some lessons")
+                                ? error.message
+                                : "Unable to submit your order. Please try again.";
                             console.error(error);
                         }
                         finally{
