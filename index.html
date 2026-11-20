@@ -191,11 +191,8 @@
 
                         sortAttribute: "subject",
                         sortOrder: "asc",
+                        refreshInterval: null,
                     }
-                },
-
-                created() {
-                    this.fetchData();
                 },
 
                 computed: {
@@ -315,8 +312,8 @@
 
                     canAddToCart(lesson) {
                         return (
-                            this.cartLessonCount(lesson.id)
-                            < lesson.spaces
+                            this.cartLessonCount(lesson.id) <
+                            lesson.spaces
                         );
                     },
 
@@ -383,71 +380,75 @@
 
 
                     // POST and PUT: Submit order and update spaces
+                    
                     async submitOrder() {
-
                         if (!this.canSubmitOrder || this.isSubmitting) {
                             return;
                         }
 
                         this.isSubmitting = true;
                         this.orderError = "";
+                        this.orderSubmitted = false;
+
+                        const orderBody = {
+                            name: this.order.name,
+                            phone: this.order.phone,
+                            lessons: this.cartItems.map(item => ({
+                                id: item.id,
+                                quantity: item.quantity
+                            }))
+                        };
 
                         try {
+                            const response = await fetch(
+                                LESSON_URL + "/orders",
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json"
+                                    },
+                                    body: JSON.stringify(orderBody)
+                                }
+                            );
 
-                            // Save order using POST
-                            const response = await fetch(LESSON_URL + "/orders", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({
-                                    name: this.order.name,
-                                    phone: this.order.phone,
-                                    lessons: this.cartItems.map(item => ({
-                                        id: item.id,
-                                        quantity: item.quantity
-                                    }))
-                                })
-                            });
+                            const result = await response.json();
 
                             if (!response.ok) {
-                                if (response.status === 409) {
-                                    throw new Error("Some lessons no longer have enough spaces. Please update your cart.");
-                                }
-
-                                throw new Error(`HTTP error ${response.status}`);
-                            }
-
-
-                            // PUT: Update available spaces
-                            for (const item of this.cartItems) {
-
-                                const lesson = this.lessons.find(
-                                    lesson => lesson.id === item.id
+                                throw new Error(
+                                    result.error || "Unable to place order."
                                 );
-
-                                await this.updateLesson(lesson, item.quantity);
                             }
 
-
-                            // Refresh lesson data after updates
+                            // Fetch updated spaces
                             await this.fetchData();
+
+                            // Clear cart
+                            this.cart = [];
+
                             this.orderSubmitted = true;
 
-                        }
-                        catch (error) {
-
-                            this.orderError = error.message.startsWith("Some lessons")
-                                ? error.message
-                                : "Unable to submit your order. Please try again.";
+                        } catch (error) {
+                            this.orderError = error.message;
                             console.error(error);
-                        }
-                        finally {
+
+                        } finally {
                             this.isSubmitting = false;
                         }
-                    }
+                    },
+                },
 
-                }
+                mounted() {
+                    this.fetchData();
+
+                    // Fetch lessons every 5 seconds
+                    this.refreshInterval = setInterval(() => {
+                        this.fetchData();
+                    }, 5000);
+                },
+
+                beforeUnmount() {
+                    clearInterval(this.refreshInterval);
+                },
             });
 
             myApp.mount("#lessonstore");
