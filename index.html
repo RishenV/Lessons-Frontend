@@ -25,6 +25,17 @@
                 height:120px;
                 object-fit:contain;
             }
+            .search-form{
+                display:flex;
+                align-items:center;
+                gap:8px;
+                flex-wrap:wrap;
+                margin:20px 0;
+            }
+            .search-form input{
+                padding:8px;
+                min-width:240px;
+            }
             button{
                 padding:8px;
                 margin-top:5px;
@@ -60,6 +71,29 @@
                 </button>
 
                 <hr>
+
+                <form class="search-form" @submit.prevent="searchLessons">
+                    <label for="lessonSearch">Search lessons:</label>
+                    <input
+                        id="lessonSearch"
+                        v-model="searchQuery"
+                        type="search"
+                        placeholder="Title, location, price, or availability"
+                    >
+                    <button type="submit">Search</button>
+                    <button
+                        type="button"
+                        @click="clearSearch"
+                        :disabled="searchResults === null">
+                        Clear
+                    </button>
+                </form>
+                <p v-if="searchError" role="alert">{{ searchError }}</p>
+                <p
+                    v-else-if="searchResults !== null && searchResults.length === 0"
+                    role="status">
+                    No matching lessons found.
+                </p>
 
                 <!-- Sorting controls -->
                 <div class="controls">
@@ -189,6 +223,11 @@
                     return {
                         message: "Available Lessons",
                         lessons: [],
+                        searchQuery: "",
+                        searchResults: null,
+                        searchError: "",
+                        searchDebounce: null,
+                        searchRequestId: 0,
                         cart: [],
                         showLesson: true,
 
@@ -204,6 +243,12 @@
                         sortAttribute: "subject",
                         sortOrder: "asc",
                         refreshInterval: null,
+                    }
+                },
+
+                watch: {
+                    searchQuery() {
+                        this.scheduleSearch();
                     }
                 },
 
@@ -224,7 +269,11 @@
 
                     // Sort lessons based on selected attribute and order
                     sortedLessons() {
-                        return [...this.lessons].sort((a, b) => {
+                        const lessonsToSort = this.searchResults === null
+                            ? this.lessons
+                            : this.searchResults;
+
+                        return [...lessonsToSort].sort((a, b) => {
 
                             let AttA = a[this.sortAttribute];
                             let AttB = b[this.sortAttribute];
@@ -260,6 +309,86 @@
                 },
 
                 methods: {
+
+                    async fetchSearchResults(query) {
+                        const url = LESSON_URL +
+                            "/lessons/search?q=" +
+                            encodeURIComponent(query);
+                        const response = await fetch(url);
+                        const contentType =
+                            response.headers.get("content-type") || "";
+
+                        if (!contentType.includes("application/json")) {
+                            throw new Error(
+                                `Search API returned a non-JSON response (HTTP ${response.status}). ` +
+                                "Check that the backend search route is deployed."
+                            );
+                        }
+
+                        const results = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(
+                                results.error || "Unable to search lessons."
+                            );
+                        }
+
+                        return results;
+                    },
+
+                    scheduleSearch() {
+                        clearTimeout(this.searchDebounce);
+                        const requestId = ++this.searchRequestId;
+                        const query = this.searchQuery.trim();
+                        this.searchError = "";
+
+                        if (!query) {
+                            this.searchResults = null;
+                            return;
+                        }
+
+                        this.searchDebounce = setTimeout(() => {
+                            this.loadSearchResults(query, requestId);
+                        }, 300);
+                    },
+
+                    async searchLessons() {
+                        clearTimeout(this.searchDebounce);
+                        const query = this.searchQuery.trim();
+                        const requestId = ++this.searchRequestId;
+                        this.searchError = "";
+
+                        if (!query) {
+                            this.searchResults = null;
+                            return;
+                        }
+
+                        await this.loadSearchResults(query, requestId);
+                    },
+
+                    async loadSearchResults(query, requestId) {
+                        try {
+                            const results =
+                                await this.fetchSearchResults(query);
+
+                            if (requestId === this.searchRequestId) {
+                                this.searchResults = results;
+                            }
+                        } catch (error) {
+                            if (requestId === this.searchRequestId) {
+                                this.searchError = error.message;
+                                console.error(error);
+                            }
+                        }
+                    },
+
+                    clearSearch() {
+                        clearTimeout(this.searchDebounce);
+                        this.searchRequestId++;
+                        this.searchQuery = "";
+                        this.searchResults = null;
+                        this.searchError = "";
+                    },
 
                     lessonImageUrl(imagePath) {
                         const image = String(imagePath).trim();
@@ -372,6 +501,13 @@
 
                             this.lessons = await response.json();
 
+                            if (
+                                this.searchResults !== null &&
+                                this.searchQuery.trim()
+                            ) {
+                                await this.searchLessons();
+                            }
+
                             console.log(this.lessons);
                         }
                         catch (error) {
@@ -474,6 +610,8 @@
 
                 beforeUnmount() {
                     clearInterval(this.refreshInterval);
+                    clearTimeout(this.searchDebounce);
+                    this.searchRequestId++;
                 },
             });
 
