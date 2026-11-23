@@ -53,6 +53,13 @@
                 padding: 20px;
                 border-radius: 12px;
             }
+            .teacher-filter {
+                margin: 10px 0;
+            }
+            .teacher-filter select {
+                margin-left: 8px;
+                padding: 8px;
+            }
         </style>
     </head>
 
@@ -94,6 +101,19 @@
                     role="status">
                     No matching lessons found.
                 </p>
+
+                <div class="teacher-filter">
+                    <label for="teacherFilter">Teacher:</label>
+                    <select id="teacherFilter" v-model="selectedTeacher">
+                        <option value="">All teachers</option>
+                        <option
+                            v-for="teacher in teachers"
+                            :key="teacher"
+                            :value="teacher">
+                            {{ teacher }}
+                        </option>
+                    </select>
+                </div>
 
                 <!-- Sorting controls -->
                 <div class="controls">
@@ -146,6 +166,8 @@
                     <p>Location: {{ lesson.location }}</p>
 
                     <p>Price: Rs {{ lesson.price }}</p>
+
+                    <p>Teacher: {{ teacherName(lesson) }}</p>
 
                     <p>{{ lesson.spaces - cartLessonCount(lesson.id) }} spaces available</p>
 
@@ -230,6 +252,7 @@
                         searchRequestId: 0,
                         cart: [],
                         showLesson: true,
+                        selectedTeacher: "",
 
                         order: {
                             name: "",
@@ -258,6 +281,14 @@
                         return this.cart.length;
                     },
 
+                    teachers() {
+                        return [...new Set(
+                            this.lessons
+                                .map(lesson => this.teacherName(lesson))
+                                .filter(Boolean)
+                        )].sort((a, b) => a.localeCompare(b));
+                    },
+
                     cartItems() {
                         return this.lessons
                             .map(lesson => ({
@@ -273,7 +304,13 @@
                             ? this.lessons
                             : this.searchResults;
 
-                        return [...lessonsToSort].sort((a, b) => {
+                        const filteredLessons = this.selectedTeacher
+                            ? lessonsToSort.filter(lesson =>
+                                this.teacherName(lesson) === this.selectedTeacher
+                            )
+                            : lessonsToSort;
+
+                        return [...filteredLessons].sort((a, b) => {
 
                             let AttA = a[this.sortAttribute];
                             let AttB = b[this.sortAttribute];
@@ -309,6 +346,20 @@
                 },
 
                 methods: {
+
+                    teacherName(lesson) {
+                        if (lesson.teacher) {
+                            return typeof lesson.teacher === "string"
+                                ? lesson.teacher
+                                : [lesson.teacher.firstName, lesson.teacher.lastName]
+                                    .filter(Boolean)
+                                    .join(" ");
+                        }
+
+                        return [lesson.firstName, lesson.lastName]
+                            .filter(Boolean)
+                            .join(" ");
+                    },
 
                     async fetchSearchResults(query) {
                         const url = LESSON_URL +
@@ -516,32 +567,7 @@
                     },
 
 
-                    // PUT: Update available spaces
-                    async updateLesson(lesson, quantity) {
-
-                        let updateBody = {
-                            spaces: lesson.spaces - quantity
-                        };
-
-                        const url = LESSON_URL + "/lessons" + "/" + lesson.id;
-
-                        const options = {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(updateBody)
-                        };
-
-                        let response = await fetch(url, options);
-
-                        if (!response.ok) {
-                            throw new Error("Unable to update lesson spaces.");
-                        }
-                    },
-
-
-                    // POST and PUT: Submit order and update spaces
+                    // POST: Submit order and update spaces
                     
                     async submitOrder() {
                         if (!this.canSubmitOrder || this.isSubmitting) {
@@ -581,7 +607,7 @@
                                 );
                             }
 
-                            // Fetch updated spaces
+                            // Fetch spaces updated by the order endpoint
                             await this.fetchData();
 
                             // Clear cart
