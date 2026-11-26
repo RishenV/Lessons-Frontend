@@ -593,7 +593,8 @@
                                 {
                                     method: "POST",
                                     headers: {
-                                        "Content-Type": "application/json"
+                                        "Content-Type": "application/json",
+                                        "X-Frontend-Order": "true"
                                     },
                                     body: JSON.stringify(orderBody)
                                 }
@@ -607,7 +608,36 @@
                                 );
                             }
 
-                            // Fetch spaces updated by the order endpoint
+                            // PUT the absolute remaining space count for each lesson
+                            for (const item of this.cartItems) {
+                                const remainingSpaces =
+                                    item.spaces - item.quantity;
+
+                                const updateResponse = await fetch(
+                                    LESSON_URL + "/lessons/" + item.id,
+                                    {
+                                        method: "PUT",
+                                        headers: {
+                                            "Content-Type": "application/json"
+                                        },
+                                        body: JSON.stringify({
+                                            spaces: remainingSpaces
+                                        })
+                                    }
+                                );
+
+                                const updateResult =
+                                    await updateResponse.json();
+
+                                if (!updateResponse.ok) {
+                                    throw new Error(
+                                        updateResult.error ||
+                                        "Unable to update lesson spaces."
+                                    );
+                                }
+                            }
+
+                            // Refresh lesson spaces after the PUT updates
                             await this.fetchData();
 
                             // Clear cart
